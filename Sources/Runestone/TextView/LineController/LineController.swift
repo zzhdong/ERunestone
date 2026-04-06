@@ -162,8 +162,18 @@ final class LineController {
         return lineFragmentControllers(matching: query)
     }
 
+    private func safeLineFragmentLocation(_ location: Int) -> Int {
+        guard lineFragmentTree.nodeTotalCount > 0 else {
+            return 0
+        }
+        return min(max(location, 0), lineFragmentTree.nodeTotalValue)
+    }
+    
     func lineFragmentNode(containingCharacterAt location: Int) -> LineFragmentNode? {
-        lineFragmentTree.node(containingLocation: location)
+        guard lineFragmentTree.nodeTotalCount > 0 else {
+            return nil
+        }
+        return lineFragmentTree.node(containingLocation: safeLineFragmentLocation(location))
     }
 
     func lineFragmentNode(atIndex index: Int) -> LineFragmentNode {
