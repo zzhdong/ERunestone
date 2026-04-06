@@ -13,6 +13,7 @@ import UIKit
 open class TextView: UIScrollView {
     /// Delegate to receive callbacks for events triggered by the editor.
     public weak var editorDelegate: TextViewDelegate?
+    private var pendingScrollSelectionToVisible = false
     /// Whether the text view is in a state where the contents can be edited.
     public private(set) var isEditing = false {
         didSet {
@@ -1245,8 +1246,31 @@ private extension TextView {
     }
 
     private func scrollLocationToVisible(_ location: Int) {
-        let range = NSRange(location: location, length: 0)
+        let safeLocation = safeClampedLocation(location)
+        let range = NSRange(location: safeLocation, length: 0)
         justScrollRangeToVisible(range)
+    }
+
+    private func safeClampedLocation(_ location: Int) -> Int {
+        min(max(location, 0), textInputView.string.length)
+    }
+    
+    private func scheduleScrollLocationToVisible(_ location: Int) {
+        let safeLocation = safeClampedLocation(location)
+    
+        guard !pendingScrollSelectionToVisible else {
+            return
+        }
+    
+        pendingScrollSelectionToVisible = true
+    
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.pendingScrollSelectionToVisible = false
+    
+            let finalLocation = self.safeClampedLocation(safeLocation)
+            self.scrollLocationToVisible(finalLocation)
+        }
     }
 
     private func installEditableInteraction() {
@@ -1351,7 +1375,7 @@ extension TextView: TextInputViewDelegate {
 
     func textInputViewDidChange(_ view: TextInputView) {
         if isAutomaticScrollEnabled, let newRange = textInputView.selectedRange, newRange.length == 0 {
-            scrollLocationToVisible(newRange.location)
+            scheduleScrollLocationToVisible(newRange.location)
         }
         editorDelegate?.textViewDidChange(self)
     }
@@ -1360,7 +1384,7 @@ extension TextView: TextInputViewDelegate {
         UIMenuController.shared.hideMenu(from: self)
         highlightNavigationController.selectedRange = view.selectedRange
         if isAutomaticScrollEnabled, let newRange = textInputView.selectedRange, newRange.length == 0 {
-            scrollLocationToVisible(newRange.location)
+            scheduleScrollLocationToVisible(newRange.location)
         }
         editorDelegate?.textViewDidChangeSelection(self)
     }
